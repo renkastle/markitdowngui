@@ -1,0 +1,40 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        os: [macos-latest, macos-15-intel]   # Apple Silicon y Intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: PYTHON=python ./scripts/build_macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MarkItDownGUI-${{ matrix.os }}
+          path: dist/*.dmg
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
