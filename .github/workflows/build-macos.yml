@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag de la Release a crear (p. ej. v0.1.0). Vacío = solo compilar."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -37,16 +42,22 @@ jobs:
       - name: Zip .app
         run: |
           cd dist
-          ditto -c -k --keepParent "MarkItDown GUI.app" "MarkItDownGUI-${GITHUB_REF_NAME//\//-}-$(uname -m).app.zip"
+          ditto -c -k --keepParent "MarkItDown GUI.app" "MarkItDownGUI-$(uname -m).app.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: MarkItDownGUI-${{ matrix.os }}
           path: |
             dist/*.dmg
             dist/*.app.zip
-      - if: startsWith(github.ref, 'refs/tags/v')
+      - if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: MarkItDown GUI ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            App de macOS sin firmar con Developer ID: la primera vez, clic derecho → Abrir,
+            o `xattr -dr com.apple.quarantine "/Applications/MarkItDown GUI.app"`.
           files: |
             dist/*.dmg
             dist/*.app.zip
