@@ -2,7 +2,7 @@ name: Build macOS app
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -39,6 +39,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: PYTHON=python ./scripts/build_macos.sh
+      - id: version
+        run: echo "tag=v$(python -c 'import sys; sys.path.insert(0, "src"); import markitdowngui; print(markitdowngui.__version__)')" >> "$GITHUB_OUTPUT"
       - name: Zip .app
         run: |
           cd dist
@@ -49,11 +51,12 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.app.zip
-      - if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
+      # Publishes (or refreshes) the release for the current package version.
+      - if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.release_tag || github.ref_name }}
-          name: MarkItDown GUI ${{ inputs.release_tag || github.ref_name }}
+          tag_name: ${{ inputs.release_tag || steps.version.outputs.tag }}
+          name: MarkItDown GUI ${{ inputs.release_tag || steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
           body: |
             App de macOS sin firmar con Developer ID: la primera vez, clic derecho → Abrir,
