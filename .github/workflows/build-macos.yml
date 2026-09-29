@@ -7,6 +7,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: macos-latest
@@ -21,6 +24,7 @@ jobs:
   build:
     needs: test
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, macos-15-intel]   # Apple Silicon y Intel
     runs-on: ${{ matrix.os }}
@@ -30,11 +34,19 @@ jobs:
         with:
           python-version: "3.12"
       - run: PYTHON=python ./scripts/build_macos.sh
+      - name: Zip .app
+        run: |
+          cd dist
+          ditto -c -k --keepParent "MarkItDown GUI.app" "MarkItDownGUI-${GITHUB_REF_NAME//\//-}-$(uname -m).app.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: MarkItDownGUI-${{ matrix.os }}
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/*.app.zip
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/*.app.zip
