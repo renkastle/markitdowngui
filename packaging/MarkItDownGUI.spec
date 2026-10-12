@@ -23,7 +23,9 @@ for package in ("markitdown", "magika", "pdfminer", "mammoth", "pptx", "openpyxl
 for dist in ("markitdown", "magika"):
     datas += copy_metadata(dist)
 
-icon = ROOT / "packaging" / "AppIcon.icns"
+IS_MAC = sys.platform == "darwin"
+IS_WIN = sys.platform == "win32"
+icon = ROOT / "packaging" / ("AppIcon.icns" if IS_MAC else "AppIcon.ico")
 icon = str(icon) if icon.exists() else None
 
 a = Analysis(
@@ -36,6 +38,26 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
+
+if IS_WIN:
+    # Windows file properties (Explorer → Properties → Details).
+    parts = (tuple(int(p) for p in __version__.split(".")[:3]) + (0, 0, 0, 0))[:4]
+    Path(workpath).mkdir(parents=True, exist_ok=True)
+    (Path(workpath) / "version_info.txt").write_text(f"""VSVersionInfo(
+  ffi=FixedFileInfo(filevers={parts}, prodvers={parts}),
+  kids=[
+    StringFileInfo([StringTable('040904B0', [
+      StringStruct('CompanyName', 'markitdowngui'),
+      StringStruct('FileDescription', '{APP_NAME}'),
+      StringStruct('FileVersion', '{__version__}'),
+      StringStruct('InternalName', 'MarkItDownGUI'),
+      StringStruct('OriginalFilename', 'MarkItDownGUI.exe'),
+      StringStruct('ProductName', '{APP_NAME}'),
+      StringStruct('ProductVersion', '{__version__}')])]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+""", encoding="utf-8")
 exe = EXE(
     pyz,
     a.scripts,
@@ -45,6 +67,7 @@ exe = EXE(
     console=False,
     argv_emulation=False,
     icon=icon,
+    version=None if not IS_WIN else str(Path(workpath) / "version_info.txt"),
 )
 coll = COLLECT(exe, a.binaries, a.datas, name="MarkItDownGUI")
 
@@ -56,25 +79,26 @@ DOCUMENT_TYPES = [
     ("Archivos ZIP", ["zip"]),
 ]
 
-app = BUNDLE(
-    coll,
-    name=f"{APP_NAME}.app",
-    icon=icon,
-    bundle_identifier="io.github.markitdowngui",
-    version=__version__,
-    info_plist={
-        "CFBundleName": APP_NAME,
-        "CFBundleDisplayName": APP_NAME,
-        "CFBundleShortVersionString": __version__,
-        "CFBundleVersion": __version__,
-        "NSHighResolutionCapable": True,
-        "NSRequiresAquaSystemAppearance": False,
-        "LSMinimumSystemVersion": "11.0",
-        "LSApplicationCategoryType": "public.app-category.productivity",
-        "CFBundleDocumentTypes": [
-            {"CFBundleTypeName": name, "CFBundleTypeRole": "Viewer",
-             "LSHandlerRank": "Alternate", "CFBundleTypeExtensions": exts}
-            for name, exts in DOCUMENT_TYPES
-        ],
-    },
-)
+if IS_MAC:
+    app = BUNDLE(
+        coll,
+        name=f"{APP_NAME}.app",
+        icon=icon,
+        bundle_identifier="io.github.markitdowngui",
+        version=__version__,
+        info_plist={
+            "CFBundleName": APP_NAME,
+            "CFBundleDisplayName": APP_NAME,
+            "CFBundleShortVersionString": __version__,
+            "CFBundleVersion": __version__,
+            "NSHighResolutionCapable": True,
+            "NSRequiresAquaSystemAppearance": False,
+            "LSMinimumSystemVersion": "11.0",
+            "LSApplicationCategoryType": "public.app-category.productivity",
+            "CFBundleDocumentTypes": [
+                {"CFBundleTypeName": name, "CFBundleTypeRole": "Viewer",
+                 "LSHandlerRank": "Alternate", "CFBundleTypeExtensions": exts}
+                for name, exts in DOCUMENT_TYPES
+            ],
+        },
+    )

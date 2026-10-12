@@ -1,6 +1,6 @@
 # MarkItDown GUI
 
-Aplicación de escritorio para **macOS** que convierte documentos a Markdown usando
+Aplicación de escritorio para **macOS** y **Windows** que convierte documentos a Markdown usando
 [Microsoft MarkItDown](https://github.com/microsoft/markitdown).
 
 ## Funciones
@@ -50,9 +50,31 @@ En un Mac:
 Genera `dist/MarkItDown GUI.app` y `dist/MarkItDownGUI-<versión>-<arquitectura>.dmg`.
 El script construye para la arquitectura del Mac donde se ejecuta (Apple Silicon o Intel).
 
-También hay un workflow de GitHub Actions (`.github/workflows/build-macos.yml`) que
-ejecuta los tests y genera los `.dmg` para Apple Silicon e Intel en cada push; al crear
-un tag `v*` los adjunta a una Release.
+## Crear la app de Windows (.exe)
+
+En Windows (PowerShell, Python 3.10+ y, para el instalador, [Inno Setup 6](https://jrsoftware.org/isinfo.php)):
+
+```powershell
+.\scripts\build_windows.ps1
+```
+
+Genera:
+
+- `dist\MarkItDownGUI\MarkItDownGUI.exe` — la app (carpeta autocontenida).
+- `dist\MarkItDownGUI-<versión>-windows-x64.zip` — versión portátil: descomprime y ejecuta.
+- `dist\MarkItDownGUI-<versión>-windows-x64-setup.exe` — instalador (menú Inicio, acceso
+  directo opcional, «Abrir con…» para los formatos soportados, desinstalador). Se instala
+  por usuario sin permisos de administrador.
+
+El `.exe` no está firmado, así que SmartScreen puede avisar la primera vez:
+«Más información» → «Ejecutar de todas formas». En Windows los atajos usan Ctrl en vez de ⌘
+(Salir: Ctrl+Q).
+
+## CI y Releases
+
+El workflow de GitHub Actions (`.github/workflows/build.yml`) ejecuta los tests en macOS y
+Windows y genera los `.dmg` (Apple Silicon e Intel) y el instalador/zip de Windows en cada
+push, y los publica en la Release de la versión del paquete (o del tag `v*`).
 
 ### Primera apertura
 
@@ -73,8 +95,8 @@ src/markitdowngui/
   converter.py   lógica de conversión (sin Qt, testeable)
   app.py         ventana principal (PySide6)
   __main__.py    punto de entrada; `--cli ARCHIVO…` convierte sin abrir ventana
-packaging/       spec de PyInstaller e Info.plist (tipos de documento)
-scripts/         build_macos.sh
+packaging/       spec de PyInstaller (macOS y Windows) e instalador de Inno Setup
+scripts/         build_macos.sh, build_windows.ps1
 tests/
 ```
 

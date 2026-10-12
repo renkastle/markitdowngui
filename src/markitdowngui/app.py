@@ -182,7 +182,7 @@ class MainWindow(QMainWindow):
         left_layout.addLayout(buttons)
 
         mono = QFontDatabase.systemFont(QFontDatabase.FixedFont)
-        mono.setPointSize(max(mono.pointSize(), 12))
+        mono.setPointSize(max(mono.pointSize(), 12 if sys.platform == "darwin" else 10))
         self.editor = QPlainTextEdit()
         self.editor.setFont(mono)
         self.editor.setPlaceholderText("El Markdown convertido aparecerá aquí.")
@@ -238,7 +238,8 @@ class MainWindow(QMainWindow):
         self.act_prefs.setMenuRole(QAction.PreferencesRole)
         self.act_about = action(f"Acerca de {APP_NAME}", self.show_about)
         self.act_about.setMenuRole(QAction.AboutRole)
-        self.act_quit = action("Salir", self.close, QKeySequence.Quit)
+        # QKeySequence.Quit has no binding on Windows, so fall back to Ctrl+Q there.
+        self.act_quit = action("Salir", self.close, QKeySequence.Quit if sys.platform == "darwin" else "Ctrl+Q")
         self.act_quit.setMenuRole(QAction.QuitRole)
         self.act_help = action(
             "Proyecto MarkItDown en GitHub",
@@ -630,7 +631,8 @@ def run(argv: list[str] | None = None) -> int:
     app.setOrganizationName("markitdowngui")
     app.setOrganizationDomain("markitdowngui.local")
     app.setApplicationVersion(__version__)
-    app.setFont(QFont(app.font().family(), max(app.font().pointSize(), 13)))
+    if sys.platform == "darwin":  # macOS default UI text is small; Windows/Linux already fit
+        app.setFont(QFont(app.font().family(), max(app.font().pointSize(), 13)))
 
     window = MainWindow()
 

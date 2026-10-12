@@ -1,0 +1,111 @@
+name: Build
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag de la Release a crear (p. ej. v0.1.0). Vacío = versión del paquete."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+
+  build-macos:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-15-intel]   # Apple Silicon y Intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: PYTHON=python ./scripts/build_macos.sh
+      - name: Zip .app
+        run: |
+          cd dist
+          ditto -c -k --keepParent "MarkItDown GUI.app" "MarkItDownGUI-$(uname -m).app.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MarkItDownGUI-${{ matrix.os }}
+          path: |
+            dist/*.dmg
+            dist/*.app.zip
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build .exe, .zip and installer
+        shell: pwsh
+        run: ./scripts/build_windows.ps1 -Python python
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MarkItDownGUI-windows
+          path: |
+            dist/*-setup.exe
+            dist/*.zip
+
+  # Publishes (or refreshes) the release for the current package version.
+  release:
+    if: github.event_name != 'pull_request'
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "tag=v$(python3 -c 'import sys; sys.path.insert(0, "src"); import markitdowngui; print(markitdowngui.__version__)')" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || steps.version.outputs.tag }}
+          name: MarkItDown GUI ${{ inputs.release_tag || steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          body: |
+            **Windows:** descarga `MarkItDownGUI-…-windows-x64-setup.exe` (instalador) o el `.zip`
+            portátil (descomprime y ejecuta `MarkItDownGUI.exe`). No está firmado, así que
+            SmartScreen puede avisar: «Más información» → «Ejecutar de todas formas».
+
+            **macOS:** app sin firmar con Developer ID: la primera vez, clic derecho → Abrir,
+            o `xattr -dr com.apple.quarantine "/Applications/MarkItDown GUI.app"`.
+          files: |
+            dist/*.dmg
+            dist/*.app.zip
+            dist/*-setup.exe
+            dist/*-windows-x64.zip
